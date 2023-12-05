@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.433">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>BDAProject</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="CopyOfBDAProject_files/libs/clipboard/clipboard.min.js"></script>
+<script src="CopyOfBDAProject_files/libs/quarto-html/quarto.js"></script>
+<script src="CopyOfBDAProject_files/libs/quarto-html/popper.min.js"></script>
+<script src="CopyOfBDAProject_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="CopyOfBDAProject_files/libs/quarto-html/anchor.min.js"></script>
+<link href="CopyOfBDAProject_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="CopyOfBDAProject_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="CopyOfBDAProject_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="CopyOfBDAProject_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="CopyOfBDAProject_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">BDAProject</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<p>The number of attempts to a level by players is an important metric for game designers to evaluate how balanced their game is. Since the levels are designed by teams with an expected attempt number in mind, it is only possible to observe if it matches with the player behaviour when the game goes live. Then, adjustments to level can be made by game designers if necessary.&nbsp; In our project, we worked on modeling the number of attempts by players for the first 15 levels of Candy Crush. Due to the nature of our data being right-skewed as shown below, we worked with log-normal model. Additionally, we modeled our problem hierarchically by introducing levels as groups since each can have different dynamics.</p>
+</section>
+<section id="description-of-data-and-analysis-problem" class="level1">
+<h1>Description of Data and Analysis Problem</h1>
+<p>The data consists of 16865 observations and has 5 columns: player_id, dt, level, num_attempts, num_success. Player ID is hashed and each rows describes at what date the player played which level. Also, how many attempts and wins that player has in the corresponding level is presented. The dates are only from the first 7 days of 2014 and first 15 levels of the game are included. During preprocessing, we combined the number of attempts and wins together if the player has played the same level on different days.<br>
+</p>
+<p>We found our dataset on <a href="https://www.kaggle.com/datasets/kingabzpro/candy-crush/data">Kaggle</a>. There are some studies on the dataset, however they are focused on estimating the expected probability of wins and based on Frequentist approaches. To differ from existing studies, we decided to work on modeling to number of attempts for levels with Bayesian analysis.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bayesplot)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggdist) </span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(brms)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">brms.backend=</span><span class="st">"cmdstanr"</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">options</span>(<span class="at">brms.file_refit=</span><span class="st">"on_change"</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>ggplot2<span class="sc">::</span><span class="fu">theme_set</span>(<span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">14</span>))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>bayesplot<span class="sc">::</span><span class="fu">bayesplot_theme_set</span>(<span class="fu">theme_minimal</span>(<span class="at">base_size =</span> <span class="dv">14</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>candy_crush_data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"./candy_crush.csv"</span>,</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                <span class="at">header =</span> <span class="cn">TRUE</span>, <span class="at">sep =</span> <span class="st">","</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(candy_crush_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                         player_id         dt level num_attempts num_success
+1 6dd5af4c7228fa353d505767143f5815 2014-01-04     4            3           1
+2 c7ec97c39349ab7e4d39b4f74062ec13 2014-01-01     8            4           1
+3 c7ec97c39349ab7e4d39b4f74062ec13 2014-01-05    12            6           0
+4 a32c5e9700ed356dc8dd5bb3230c5227 2014-01-03    11            1           1
+5 a32c5e9700ed356dc8dd5bb3230c5227 2014-01-07    15            6           0
+6 b94d403ac4edf639442f93eeffdc7d92 2014-01-01     8            8           1</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Combine the num_attemps and num_success if player plays the same level on different days</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>candy_crush_data <span class="ot">&lt;-</span> candy_crush_data <span class="sc">%&gt;%</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(player_id, level) <span class="sc">%&gt;%</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarize</span>(</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">num_attempts =</span> <span class="fu">sum</span>(num_attempts),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">num_success =</span> <span class="fu">sum</span>(num_success)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>`summarise()` has grouped output by 'player_id'. You can override using the
+`.groups` argument.</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>day_value_counts <span class="ot">&lt;-</span> <span class="fu">table</span>(candy_crush_data<span class="sc">$</span>dt)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Unknown or uninitialised column: `dt`.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>level_value_counts <span class="ot">&lt;-</span> <span class="fu">table</span>(candy_crush_data<span class="sc">$</span>level)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(day_value_counts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>&lt; table of extent 0 &gt;</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(level_value_counts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15 
+ 676  680  673  705 1200  670  966 1839 1216  879  994 1111  687  844 2836 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">min</span>(candy_crush_data<span class="sc">$</span>num_attempts))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">max</span>(candy_crush_data<span class="sc">$</span>num_attempts))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 258</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">hist</span>(candy_crush_data<span class="sc">$</span>num_attempts, <span class="at">freq =</span> <span class="cn">TRUE</span>, <span class="at">breaks =</span> <span class="dv">200</span>, <span class="at">xlab =</span> <span class="st">"Number of Attempts"</span>, <span class="at">main =</span> <span class="st">"Distribution of Attempts Across All Levels"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(candy_crush_data, <span class="fu">aes</span>(<span class="at">x =</span> num_attempts)) <span class="sc">+</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">binwidth =</span> <span class="dv">2</span>, <span class="at">fill =</span> <span class="st">"pink"</span>, <span class="at">color =</span> <span class="st">"black"</span>) <span class="sc">+</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> level, <span class="at">scales =</span> <span class="st">"free"</span>) <span class="sc">+</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Number of Attempts"</span>, <span class="at">y =</span> <span class="cn">NULL</span>, <span class="at">title =</span> <span class="st">"Distribution of Attempts Across Different Levels"</span>) <span class="sc">+</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">strip.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">8</span>),</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.text.y =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title.y =</span> <span class="fu">element_blank</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="description-of-models" class="level1">
+<h1>Description of Models</h1>
+<ul>
+<li><p>Hurdle Log-normal Model: Due to the right-skewed structure of our data, we decided to use Log-normal observation model. Since our observations can also include 0 for response if the player hasn’t played the level (num_attempts = 0), we were not able to use log-normal normal directly (it only allows positive values). Instead, we used the family “hurdle_lognormal” which is another variation of it that allows log-normal modeling when the data has 0 response. The level number and number of wins by the player are used as covariates.</p></li>
+<li><p>Hierarchical Model: In the hierarchical model, we assumed Hurdle Log-normal distribution for the number of attempts once again. Number of successes by the player is a covarite as well. However, the level number is used to define a hierarchical structure instead of a numerical value covariate. This way, the other covariates can vary between levels which can model the fluctuating difficulty of levels in a more convenient way.</p></li>
+</ul>
+</section>
+<section id="description-of-priors" class="level1">
+<h1>Description of Priors</h1>
+<p>Since we did not have any prior information to our problem that is game specific and we already had a large number observations, we decided to use weakly informative priors. The priors are adjusted represent the change in log scale.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>lognormal_model_priors <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="fu">log</span>(<span class="dv">5</span>)), <span class="at">coef =</span> <span class="st">"level"</span>),</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="fu">log</span>(<span class="dv">5</span>)), <span class="at">coef =</span> <span class="st">"num_success"</span>)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>hierarchical_model_priors <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prior</span>(<span class="fu">normal</span>(<span class="dv">0</span>, <span class="fu">log</span>(<span class="dv">5</span>)), <span class="at">coef =</span> <span class="st">"num_success"</span>)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="model-code" class="level1">
+<h1>Model Code</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>lognormal_model <span class="ot">&lt;-</span> <span class="fu">brm</span>(num_attempts <span class="sc">~</span> <span class="dv">1</span> <span class="sc">+</span> level <span class="sc">+</span> num_success, </span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>                       <span class="at">data =</span> candy_crush_data,</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                       <span class="at">family =</span> <span class="fu">hurdle_lognormal</span>(),</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>                       <span class="at">prior =</span> lognormal_model_priors,</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>                       <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>                       <span class="at">cores =</span> <span class="dv">16</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Start sampling</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 16, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf4b701540.stan', line 82, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb221"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb221-1"><a href="#cb221-1" aria-hidden="true" tabindex="-1"></a>hierarchical_model <span class="ot">&lt;-</span> <span class="fu">brm</span>(num_attempts <span class="sc">~</span> <span class="dv">1</span> <span class="sc">+</span> num_success <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">+</span> num_success <span class="sc">|</span> level), </span>
+<span id="cb221-2"><a href="#cb221-2" aria-hidden="true" tabindex="-1"></a>             <span class="at">data =</span> candy_crush_data,</span>
+<span id="cb221-3"><a href="#cb221-3" aria-hidden="true" tabindex="-1"></a>             <span class="at">family =</span> <span class="fu">hurdle_lognormal</span>(),</span>
+<span id="cb221-4"><a href="#cb221-4" aria-hidden="true" tabindex="-1"></a>             <span class="at">prior =</span> hierarchical_model_priors,</span>
+<span id="cb221-5"><a href="#cb221-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">chains =</span> <span class="dv">4</span>,           </span>
+<span id="cb221-6"><a href="#cb221-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">cores =</span> <span class="dv">16</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Start sampling</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 2 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 3 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Location parameter is nan, but must be finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 Exception: Exception: lognormal_lpdf: Scale parameter is inf, but must be positive finite! (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 28, column 6 to column 68) (in '/var/folders/46/l0nkbr7d77l8hz99pt_bwlqh0000gn/T/Rtmp9wcftB/model-84bf60da0376.stan', line 119, column 6 to column 63)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Chain 4 </code></pre>
+</div>
+</div>
+</section>
+<section id="mcmc" class="level1">
+<h1>MCMC</h1>
+<p>We used the default MCMC algorithm of brm function.</p>
+</section>
+<section id="convergence-diagnostics" class="level1">
+<h1>Convergence Diagnostics</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb398"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb398-1"><a href="#cb398-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(lognormal_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> Family: hurdle_lognormal 
+  Links: mu = identity; sigma = identity; hu = identity 
+Formula: num_attempts ~ 1 + level + num_success 
+   Data: candy_crush_data (Number of observations: 15976) 
+  Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;
+         total post-warmup draws = 4000
+
+Population-Level Effects: 
+            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+Intercept       0.62      0.02     0.59     0.66 1.00     5077     3393
+level           0.07      0.00     0.06     0.07 1.00     5286     3107
+num_success    -0.04      0.01    -0.05    -0.02 1.00     4351     2912
+
+Family Specific Parameters: 
+      Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+sigma     0.96      0.01     0.95     0.97 1.00     5677     2889
+hu        0.01      0.00     0.00     0.01 1.00     3521     2251
+
+Draws were sampled using sample(hmc). For each parameter, Bulk_ESS
+and Tail_ESS are effective sample size measures, and Rhat is the potential
+scale reduction factor on split chains (at convergence, Rhat = 1).</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb400"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb400-1"><a href="#cb400-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(hierarchical_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> Family: hurdle_lognormal 
+  Links: mu = identity; sigma = identity; hu = identity 
+Formula: num_attempts ~ 1 + num_success + (1 + num_success | level) 
+   Data: candy_crush_data (Number of observations: 15976) 
+  Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;
+         total post-warmup draws = 4000
+
+Group-Level Effects: 
+~level (Number of levels: 15) 
+                           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS
+sd(Intercept)                  0.65      0.14     0.45     0.98 1.00      900
+sd(num_success)                0.19      0.04     0.12     0.29 1.00     1057
+cor(Intercept,num_success)    -0.61      0.18    -0.87    -0.19 1.00     1624
+                           Tail_ESS
+sd(Intercept)                  1448
+sd(num_success)                1453
+cor(Intercept,num_success)     1767
+
+Population-Level Effects: 
+            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+Intercept       0.97      0.16     0.64     1.29 1.00     1052     1286
+num_success     0.02      0.05    -0.07     0.12 1.00     1353     1931
+
+Family Specific Parameters: 
+      Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+sigma     0.87      0.00     0.86     0.88 1.00     4790     2896
+hu        0.01      0.00     0.00     0.01 1.00     4096     2350
+
+Draws were sampled using sample(hmc). For each parameter, Bulk_ESS
+and Tail_ESS are effective sample size measures, and Rhat is the potential
+scale reduction factor on split chains (at convergence, Rhat = 1).</code></pre>
+</div>
+</div>
+</section>
+<section id="posterior-predictive-checks" class="level1">
+<h1>Posterior Predictive Checks</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb402"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb402-1"><a href="#cb402-1" aria-hidden="true" tabindex="-1"></a>ppc_lognormal_model <span class="ot">&lt;-</span> <span class="fu">pp_check</span>(lognormal_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Using 10 posterior draws for ppc type 'dens_overlay' by default.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb404"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb404-1"><a href="#cb404-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ppc_lognormal_model <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Log-normal model PPC"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb405"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb405-1"><a href="#cb405-1" aria-hidden="true" tabindex="-1"></a>ppc_hierarchical_model <span class="ot">&lt;-</span> <span class="fu">pp_check</span>(hierarchical_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Using 10 posterior draws for ppc type 'dens_overlay' by default.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb407"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb407-1"><a href="#cb407-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ppc_hierarchical_model <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Hierarchical model PPC"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb408"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb408-1"><a href="#cb408-1" aria-hidden="true" tabindex="-1"></a>ppc_lognormal_model <span class="ot">&lt;-</span> <span class="fu">pp_check</span>(lognormal_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Using 10 posterior draws for ppc type 'dens_overlay' by default.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb410"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb410-1"><a href="#cb410-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ppc_lognormal_model <span class="sc">+</span> <span class="fu">xlim</span>(<span class="dv">0</span>, <span class="dv">75</span>) <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Log-normal model PPC between 0-75"</span>)) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 156 rows containing non-finite values (`stat_density()`).</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 20 rows containing non-finite values (`stat_density()`).</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb413"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb413-1"><a href="#cb413-1" aria-hidden="true" tabindex="-1"></a>ppc_hierarchical_model <span class="ot">&lt;-</span> <span class="fu">pp_check</span>(hierarchical_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Using 10 posterior draws for ppc type 'dens_overlay' by default.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb415"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb415-1"><a href="#cb415-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ppc_hierarchical_model <span class="sc">+</span> <span class="fu">xlim</span>(<span class="dv">0</span>, <span class="dv">75</span>) <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Hierarchical model PPC between 0-75"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 122 rows containing non-finite values (`stat_density()`).</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 20 rows containing non-finite values (`stat_density()`).</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="prior-sensitivity-analysis" class="level1">
+<h1>Prior Sensitivity Analysis</h1>
+</section>
+<section id="model-comparison" class="level1">
+<h1>Model Comparison</h1>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb418"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb418-1"><a href="#cb418-1" aria-hidden="true" tabindex="-1"></a>loo_lognormal_model <span class="ot">&lt;-</span> <span class="fu">loo</span>(lognormal_model, <span class="at">save_psis =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Found 1 observations with a pareto_k &gt; 0.7 in model 'lognormal_model'.
+It is recommended to set 'moment_match = TRUE' in order to perform moment
+matching for problematic observations.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb420"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb420-1"><a href="#cb420-1" aria-hidden="true" tabindex="-1"></a>loo_hierarchical_model <span class="ot">&lt;-</span> <span class="fu">loo</span>(hierarchical_model, <span class="at">save_psis =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Found 2 observations with a pareto_k &gt; 0.7 in model
+'hierarchical_model'. It is recommended to set 'moment_match = TRUE' in order
+to perform moment matching for problematic observations.</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb422"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb422-1"><a href="#cb422-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(loo_lognormal_model, <span class="at">main =</span> <span class="st">"Log-normal Model LOO"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-16-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb423"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb423-1"><a href="#cb423-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(loo_hierarchical_model, <span class="at">main =</span> <span class="st">"Hierarchical Model LOO"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="CopyOfBDAProject_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb424"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb424-1"><a href="#cb424-1" aria-hidden="true" tabindex="-1"></a><span class="fu">loo_compare</span>(loo_lognormal_model, loo_hierarchical_model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                   elpd_diff se_diff
+hierarchical_model     0.0       0.0
+lognormal_model    -1647.6      69.9</code></pre>
+</div>
+</div>
+</section>
+<section id="discussion-of-problems-and-potential-improvements" class="level1">
+<h1>Discussion of Problems and Potential Improvements</h1>
+</section>
+<section id="conclusion" class="level1">
+<h1>Conclusion</h1>
+</section>
+<section id="self-reflection" class="level1">
+<h1>Self Reflection</h1>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

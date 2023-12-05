@@ -1,0 +1,261 @@
+---
+title: "Bayesian Data Analysis Project"
+subtitle: "Analysis of Candy Crush First 15 Levels Data"
+author: anonymous # <-- hand in anonymously
+format:
+  html:
+    toc: true
+    code-tools: true
+    code-line-numbers: true
+    number-sections: true
+    mainfont: Georgia, serif
+    page-layout: article
+  pdf:  
+    geometry:
+    - left=1cm,top=1cm,bottom=1cm,right=7cm
+    number-sections: true
+    code-annotations: none
+editor: source
+---
+
+# Introduction
+
+The number of attempts to a level by players is an important metric for game designers to evaluate how balanced their game is. Since the levels are designed by teams with an expected attempt number in mind, it is only possible to observe if it matches with the player behaviour when the game goes live. Then, adjustments to level can be made by game designers if necessary.\ 
+In our project, we worked on modeling the number of attempts by players for the first 15 levels of Candy Crush. Due to the nature of our data being right-skewed as shown below, we worked with log-normal model. Additionally, we modeled our problem hierarchically by introducing levels as groups since each can have different dynamics.\
+Section 2 will begin with description of data, followed by description of the models in section 3, priors will be given in section 4, model code will be presented in section 5. Then, section 6 will give MCMC details, followed by convergence diagnostics in section 7. Posterior predictive checks will be presented in section 8 and prior sensitivity analysis will be shown in section 9. In the following sections, discussion, conclusion and self reflection will be given.
+
+# Description of Data and Analysis Problem
+
+The data consists of 16865 observations and has 5 columns: player_id, dt, level, num_attempts, num_success. Player ID is hashed and each rows describes at what date the player played which level. Also, how many attempts and wins that player has in the corresponding level is presented. The dates are only from the first 7 days of 2014 and first 15 levels of the game are included. During preprocessing, we combined the number of attempts and wins together if the player has played the same level on different days.\
+
+We found our dataset on [Kaggle](https://www.kaggle.com/datasets/kingabzpro/candy-crush/data). There are some studies on the dataset, however they are focused on estimating the expected probability of wins and based on Frequentist approaches. To differ from existing studies, we decided to work on modeling to number of attempts for levels with Bayesian analysis.
+
+
+```{r, message=FALSE, warning=FALSE}
+#| label: imports
+library(bayesplot)
+library(cmdstanr)
+library(dplyr)
+library(ggplot2)
+library(ggdist) 
+library(posterior)
+library(brms)
+library(tinytex)
+options(brms.backend="cmdstanr")
+options(brms.file_refit="on_change")
+ggplot2::theme_set(theme_minimal(base_size = 14))
+bayesplot::bayesplot_theme_set(theme_minimal(base_size = 14))
+```
+
+```{r}
+candy_crush_data <- read.csv("./candy_crush.csv",
+                header = TRUE, sep = ",")
+
+head(candy_crush_data)
+```
+
+```{r, message=FALSE, warning=FALSE}
+#Combine the num_attemps and num_success if player plays the same level on different days
+candy_crush_data <- candy_crush_data %>%
+  group_by(player_id, level) %>%
+  summarize(
+    num_attempts = sum(num_attempts),
+    num_success = sum(num_success)
+  ) %>%
+  ungroup()
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+day_value_counts <- table(candy_crush_data$dt)
+level_value_counts <- table(candy_crush_data$level)
+print(day_value_counts)
+print(level_value_counts)
+print(min(candy_crush_data$num_attempts))
+print(max(candy_crush_data$num_attempts))
+hist(candy_crush_data$num_attempts, freq = TRUE, breaks = 200, xlab = "Number of Attempts"
+     , main = "Distribution of Attempts Across All Levels")
+```
+```{r}
+ggplot(candy_crush_data, aes(x = num_attempts)) +
+  geom_histogram(binwidth = 2, fill = "pink", color = "black") +
+  facet_wrap(~ level, scales = "free") +
+  labs(x = "Number of Attempts", y = NULL, title = "Distribution of Attempts Across Different Levels") +
+  theme(strip.text = element_text(size = 8),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank())
+```
+
+# Description of Models
+
+* Hurdle Log-normal Model: Due to the right-skewed structure of our data, we decided to use Log-normal observation model. Since our observations can also include 0 for response if the player hasn't played the level (num_attempts = 0), we were not able to use log-normal normal directly (it only allows positive values). Instead, we used the family "hurdle_lognormal" which is another variation of it that allows log-normal modeling when the data has 0 response. The level number and number of wins by the player are used as covariates.
+
+* Hierarchical Model: In the hierarchical model, we assumed Hurdle Log-normal distribution for the number of attempts once again. Number of successes by the player is a covarite as well. However, the level number is used to define a hierarchical structure instead of a numerical value covariate. This way, the other covariates can vary between levels which can model the fluctuating difficulty of levels in a more convenient way.
+
+# Description of Priors
+
+Since the data we use is game specific, we were unable to find a suitable prior reference through research. Then, because of having large number observations, we decided to use weakly informative priors. The priors are adjusted represent the change in log scale.
+
+```{r}
+lognormal_model_priors <- c(
+  prior(normal(0, log(5)), coef = "level"),
+  prior(normal(0, log(5)), coef = "num_success")
+)
+
+hierarchical_model_priors <- c(
+  prior(normal(0, log(5)), coef = "num_success")
+)
+```
+
+
+# Model Code
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+lognormal_model <- brm(num_attempts ~ 1 + level + num_success, 
+                       data = candy_crush_data,
+                       family = hurdle_lognormal(),
+                       prior = lognormal_model_priors,
+                       chains = 4,
+                       cores = 16)
+```
+
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+hierarchical_model <- brm(num_attempts ~ 1 + num_success + (1 + num_success | level), 
+             data = candy_crush_data,
+             family = hurdle_lognormal(),
+             prior = hierarchical_model_priors,
+             chains = 4,           
+             cores = 16)
+```
+
+
+
+# MCMC
+
+We used the default MCMC algorithm of brm function. By default, Stan uses the No-U-Turn Sampler (NUTS) which is a Hamiltonian Monte Carlo (HMC) method.
+
+# Convergence Diagnostics
+
+* For both of the models, Rhat values are close to 1 which depicts convergence of chains.
+* For both of the models, no divergent transitions are found which means all chains in the NUTS algorithm were able to converge.
+* Effective Sample Size (ESS) values are once again very high in both models which shows parameters space is explored widely and parameters are estimated confidently.
+
+```{r}
+summary(lognormal_model)
+```
+
+```{r}
+np <- nuts_params(lognormal_model)
+str(np)
+cat("\nNumber of divergent transitions for the log-normal model:", 
+    sum(subset(np, Parameter == "divergent__")$Value))
+```
+
+```{r}
+summary(hierarchical_model)
+```
+
+```{r}
+np <- nuts_params(hierarchical_model)
+str(np)
+cat("\nNumber of divergent transitions for the hierarchical model:"
+    , sum(subset(np, Parameter == "divergent__")$Value))
+```
+
+# Posterior Predictive Checks
+
+With ppc_check for both models, it is a bit hard to understand since the observation is right-skewed and ranges are very large. Therefore, we also included plots for the leftmost part of the ppc_check plot between attemps of 0-75. Both models looks like a convenient fit. However, to understand which one has better predictive performance, further analysis must be made.
+
+```{r, warning=FALSE, message=FALSE}
+ppc_lognormal_model <- pp_check(lognormal_model)
+plot(ppc_lognormal_model + labs(title = "Log-normal model PPC"))
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ppc_hierarchical_model <- pp_check(hierarchical_model)
+plot(ppc_hierarchical_model + labs(title = "Hierarchical model PPC"))
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ppc_lognormal_model <- pp_check(lognormal_model)
+plot(ppc_lognormal_model + xlim(0, 75) + labs(title = "Log-normal model PPC between 0-75")) 
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+ppc_hierarchical_model <- pp_check(hierarchical_model)
+plot(ppc_hierarchical_model + xlim(0, 75) + labs(title = "Hierarchical model PPC between 0-75"))
+```
+
+
+# Prior Sensitivity Analysis
+
+We evaluated priors with a different mean and larger standard deviation in log scale. However, in both of the models estimates did not change significantly. We believe this is mostly due to having a high number of observations.
+
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+priors <- c(
+  prior(normal(15, log(30)), coef = "level"),
+  prior(normal(15, log(30)), coef = "num_success")
+)
+
+alternate_sd_priors_lognormal_model <- brm(num_attempts ~ 1 + level + num_success, 
+                       data = candy_crush_data,
+                       family = hurdle_lognormal(),
+                       prior = priors,
+                       chains = 4,
+                       cores = 16)
+```
+
+```{r}
+summary(alternate_sd_priors_lognormal_model)
+```
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+priors <- c(
+  prior(normal(15, log(30)), coef = "num_success")
+)
+
+alternate_sd_hierarchical_model <- brm(num_attempts ~ 1 + num_success + (1 + num_success | level), 
+             data = candy_crush_data,
+             family = hurdle_lognormal(),
+             prior = priors,
+             chains = 4,           
+             cores = 16)
+```
+
+```{r}
+summary(alternate_sd_hierarchical_model)
+```
+
+
+# Model Comparison
+
+Since the hierarchical model has better predictive performance, it is taken as a reference and shown with 0 values of elpd_diff and se_diff. Log-normal model has an elpd_diff value of -1650.7 which is considerably lower, and standard error of 72. It can be safely concluded that, hierarchical models has better predictive performance.
+
+```{r, warning=FALSE, message=FALSE, results='hide'}
+loo_lognormal_model <- loo(lognormal_model, save_psis = TRUE)
+loo_hierarchical_model <- loo(hierarchical_model, save_psis = TRUE)
+```
+
+
+```{r}
+loo_compare(loo_lognormal_model, loo_hierarchical_model)
+```
+
+
+
+# Discussion of Problems and Potential Improvements
+
+In general, we did not face any issues with convergence and modeling. We believe this was due to our structure of our data and having many observations. However, there are thing we have in mind that can be used for further improvement. For example, players can also be used to define hierarchical groups since each player has a different skillset which can change the number of attempts greatly. We have tried that at first, but model fitting takes way too long since there too many players which results with too many groups. Maybe categorizing players' skills (novice, medium, expert) and then using those as hierarchical groups could help. That could be done if there were more data about player's characteristics and demographics.   
+
+# Conclusion
+
+In a nutshell, we have evaluated the difference of treating the level number as a numeric covariate versus using it to define groups to estimate the number of attempts. Our hierarchical model clearly showed better performance than the former model. We learned that hierarchical modeling can help with real world cases where the groups' characteristics can change significantly such as game levels, assignments and diet differences.
+
+# Self Reflection
+
+As a group, we learned to apply the processes we did during assignments in templates to real world data. Moreover, we grasped the idea of stating our problem on the observed data and come up with suitable modeling ideas accordingly. 
